@@ -1156,20 +1156,28 @@ function handleParsedRows(rows){
 
 function normalizeDate(val){
   if (!val) return '';
-  if (val instanceof Date) return val.toISOString().slice(0,10);
-  // Excel serial date number
+  if (val instanceof Date){
+    // Use UTC components — SheetJS constructs date cells in UTC, so this
+    // avoids any shift from the browser's local timezone.
+    const y = val.getUTCFullYear();
+    const m = String(val.getUTCMonth()+1).padStart(2,'0');
+    const d = String(val.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  // Excel serial date number — pure arithmetic, no timezone involved.
   if (typeof val === 'number'){
     const d = XLSX.SSF.parse_date_code(val);
     if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
   }
   const s = String(val).trim();
-  // try YYYY-MM-DD directly
+  // YYYY-MM-DD already — use as-is, no Date object involved.
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // try M/D/YYYY
+  // M/D/YYYY — rearrange digits directly, no Date object involved.
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-  const parsed = new Date(s);
-  if (!isNaN(parsed)) return parsed.toISOString().slice(0,10);
+  // Last resort: only reachable for unusual formats. Avoid new Date(s) here
+  // since browsers parse non-ISO strings in local time, which can shift
+  // the date by a day depending on timezone. Flag it instead of guessing.
   return s;
 }
 
