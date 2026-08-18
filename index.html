@@ -154,6 +154,54 @@
   }
   .item-head:hover{ background:#FAFBFC; }
   .item-left{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+  .bulk-checkbox{
+    flex:none;
+    width:16px; height:16px;
+    cursor:pointer;
+    accent-color:var(--navy);
+  }
+
+  /* ---------- Bulk action bar ---------- */
+  #bulkBar{
+    position:fixed;
+    bottom:0; left:0; right:0;
+    background:var(--dark);
+    color:#fff;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    padding:14px 20px;
+    z-index:150;
+    box-shadow:0 -4px 16px rgba(0,0,0,0.2);
+  }
+  #bulkBar.open{ display:flex; }
+  #bulkBar .bulk-count{
+    font-size:13.5px;
+    font-weight:bold;
+    color:var(--orange);
+  }
+  #bulkBar button{
+    font-size:13px;
+    padding:8px 16px;
+    border-radius:5px;
+    cursor:pointer;
+    border:1px solid rgba(255,255,255,0.25);
+    background:transparent;
+    color:#fff;
+  }
+  #bulkBar button:hover{ background:rgba(255,255,255,0.1); }
+  #bulkBar .bulk-delete-btn{
+    border-color:var(--pending);
+    color:#ff8f82;
+  }
+  #bulkBar .bulk-delete-btn:hover{ background:var(--pending); color:#fff; }
+  #bulkBar .bulk-clear-btn{
+    background:none;
+    border:none;
+    color:#9AA6B2;
+    text-decoration:underline;
+  }
   .chev{
     width:16px; height:16px;
     flex:none;
@@ -390,7 +438,7 @@
   #logoutBtn:hover{ background:var(--alt); }
 
   /* ---------- Upload modal ---------- */
-  #uploadModal, #editModal{
+  #uploadModal, #editModal, #bulkEditModal{
     position:fixed; inset:0;
     background:rgba(20,24,28,0.55);
     display:none;
@@ -400,7 +448,7 @@
     overflow-y:auto;
     padding:40px 20px;
   }
-  #uploadModal.open, #editModal.open{ display:flex; }
+  #uploadModal.open, #editModal.open, #bulkEditModal.open{ display:flex; }
   .upload-box{
     background:#fff;
     border-radius:8px;
@@ -534,6 +582,47 @@
     font-weight:bold;
   }
   .btn-delete:hover{ background:var(--pending); color:#fff; }
+
+  .bulk-field-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:12px 0;
+  }
+  .bulk-field-row input[type="checkbox"]{
+    flex:none;
+    width:16px; height:16px;
+    accent-color:var(--navy);
+    cursor:pointer;
+  }
+  .bulk-field-row label{
+    flex:none;
+    width:110px;
+    font-size:12.5px;
+    font-weight:bold;
+    color:var(--navy);
+  }
+  .bulk-field-row input[type="text"],
+  .bulk-field-row input[type="date"]{
+    flex:1;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    font-size:13.5px;
+    font-family:Arial, Helvetica, sans-serif;
+  }
+  .bulk-field-row input:disabled{ background:var(--alt); color:#aab4bd; }
+  .bulk-preview-list{
+    max-height:160px;
+    overflow-y:auto;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 12px;
+    font-size:12px;
+    color:#5A6572;
+    margin-bottom:14px;
+    background:var(--alt);
+  }
 </style>
 
 <div id="loginScreen">
@@ -593,6 +682,43 @@
       </div>
     </div>
   </div>
+</div>
+
+<div id="bulkEditModal">
+  <div class="upload-box">
+    <h2>Bulk Edit</h2>
+    <p class="sub">Check a field to apply a new value to every selected product below. Unchecked fields stay as-is.</p>
+    <div class="bulk-preview-list" id="bulkPreviewList"></div>
+
+    <div class="bulk-field-row">
+      <input type="checkbox" id="bulkUseDate">
+      <label for="bulkDate">Ship date</label>
+      <input type="date" id="bulkDate" disabled>
+    </div>
+    <div class="bulk-field-row">
+      <input type="checkbox" id="bulkUseDivision">
+      <label for="bulkDivision">Division</label>
+      <input type="text" id="bulkDivision" placeholder="Mens / Youth / —" disabled>
+    </div>
+    <div class="bulk-field-row">
+      <input type="checkbox" id="bulkUsePo">
+      <label for="bulkPo">PO number</label>
+      <input type="text" id="bulkPo" placeholder="New PO number" disabled>
+    </div>
+
+    <div class="upload-status" id="bulkEditStatus"></div>
+    <div class="upload-actions">
+      <button class="btn-cancel" id="bulkEditCancelBtn" type="button">Cancel</button>
+      <button class="btn-confirm" id="bulkEditSaveBtn" type="button">Apply to Selected</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulkBar">
+  <span class="bulk-count" id="bulkCount">0 selected</span>
+  <button id="bulkEditBtn">Bulk Edit</button>
+  <button class="bulk-delete-btn" id="bulkDeleteBtn">Delete Selected</button>
+  <button class="bulk-clear-btn" id="bulkClearBtn">Clear selection</button>
 </div>
 </head>
 <body>
@@ -769,6 +895,20 @@ function build(){
         const left = document.createElement('div');
         left.className = 'item-left';
 
+        if (currentRole === 'editor'){
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'bulk-checkbox';
+          checkbox.checked = selectedIds.has(it.id);
+          checkbox.onclick = (e) => e.stopPropagation();
+          checkbox.onchange = (e) => {
+            if (e.target.checked) selectedIds.add(it.id);
+            else selectedIds.delete(it.id);
+            updateBulkBar();
+          };
+          left.appendChild(checkbox);
+        }
+
         const chev = document.createElement('svg');
         chev.setAttribute('class','chev');
         chev.setAttribute('viewBox','0 0 24 24');
@@ -880,6 +1020,7 @@ const PASSWORDS = {
 };
 
 let currentRole = null;
+let selectedIds = new Set();
 
 function startApp(role){
   currentRole = role;
@@ -1280,6 +1421,137 @@ document.getElementById('editDeleteBtn').addEventListener('click', async () => {
     setEditStatus('Error deleting: ' + err.message, true);
   }
 });
+
+// ============================================================
+// Bulk select / bulk delete / bulk edit (editors only)
+// ============================================================
+function findItemById(id){
+  for (const m of DATA){
+    for (const d of m.dates){
+      const found = d.items.find(it => it.id === id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  const count = selectedIds.size;
+  document.getElementById('bulkCount').textContent = `${count} selected`;
+  bar.classList.toggle('open', count > 0);
+}
+
+document.getElementById('bulkClearBtn').addEventListener('click', () => {
+  selectedIds.clear();
+  build();
+});
+
+document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+  const items = ids.map(findItemById).filter(Boolean);
+  const totalUnits = items.reduce((s,it) => s + it.qty, 0);
+  const confirmed = confirm(`Delete ${ids.length} product(s) totaling ${fmt(totalUnits)} units? This can't be undone.`);
+  if (!confirmed) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('incoming_products')
+      .delete()
+      .in('id', ids);
+    if (error) throw error;
+
+    selectedIds.clear();
+    await fetchData();
+    build();
+  } catch (err) {
+    alert('Error deleting: ' + err.message);
+  }
+});
+
+// ---------- Bulk edit modal ----------
+document.getElementById('bulkEditBtn').addEventListener('click', () => {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+  const items = ids.map(findItemById).filter(Boolean);
+
+  document.getElementById('bulkPreviewList').innerHTML =
+    items.map(it => `${it.name} <span style="color:#aab4bd;">(${fmt(it.qty)} units, ${it.ship_date})</span>`).join('<br>');
+
+  // reset fields
+  document.getElementById('bulkUseDate').checked = false;
+  document.getElementById('bulkDate').value = '';
+  document.getElementById('bulkDate').disabled = true;
+  document.getElementById('bulkUseDivision').checked = false;
+  document.getElementById('bulkDivision').value = '';
+  document.getElementById('bulkDivision').disabled = true;
+  document.getElementById('bulkUsePo').checked = false;
+  document.getElementById('bulkPo').value = '';
+  document.getElementById('bulkPo').disabled = true;
+  document.getElementById('bulkEditStatus').textContent = '';
+  document.getElementById('bulkEditStatus').className = 'upload-status';
+
+  document.getElementById('bulkEditModal').classList.add('open');
+});
+
+['Date','Division','Po'].forEach(field => {
+  document.getElementById('bulkUse' + field).addEventListener('change', (e) => {
+    document.getElementById('bulk' + field).disabled = !e.target.checked;
+  });
+});
+
+document.getElementById('bulkEditCancelBtn').addEventListener('click', () => {
+  document.getElementById('bulkEditModal').classList.remove('open');
+});
+
+document.getElementById('bulkEditSaveBtn').addEventListener('click', async () => {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+
+  const updates = {};
+  if (document.getElementById('bulkUseDate').checked){
+    const v = document.getElementById('bulkDate').value;
+    if (!v){ setBulkEditStatus('Pick a ship date, or uncheck that field.', true); return; }
+    updates.ship_date = v;
+  }
+  if (document.getElementById('bulkUseDivision').checked){
+    updates.division = document.getElementById('bulkDivision').value.trim();
+  }
+  if (document.getElementById('bulkUsePo').checked){
+    const v = document.getElementById('bulkPo').value.trim();
+    if (!v){ setBulkEditStatus('Enter a PO number, or uncheck that field.', true); return; }
+    updates.po = v;
+  }
+
+  if (!Object.keys(updates).length){
+    setBulkEditStatus('Check at least one field to change.', true);
+    return;
+  }
+
+  setBulkEditStatus('Applying…', false);
+  try {
+    const { error } = await supabaseClient
+      .from('incoming_products')
+      .update(updates)
+      .in('id', ids);
+    if (error) throw error;
+
+    setBulkEditStatus(`Updated ${ids.length} product(s). Refreshing dashboard…`, false, true);
+    selectedIds.clear();
+    await fetchData();
+    build();
+    setTimeout(() => document.getElementById('bulkEditModal').classList.remove('open'), 1000);
+  } catch (err) {
+    setBulkEditStatus('Error applying changes: ' + err.message, true);
+  }
+});
+
+function setBulkEditStatus(msg, isError, isSuccess){
+  const el = document.getElementById('bulkEditStatus');
+  el.textContent = msg;
+  el.className = 'upload-status' + (isError ? ' error' : '') + (isSuccess ? ' success' : '');
+}
 </script>
 
 </body>
