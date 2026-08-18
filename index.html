@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>BURLEBO — Incoming Product Calendar</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --dark:#1A1A1A;
@@ -278,9 +279,222 @@
     border:1px solid var(--border);
     border-radius:6px;
   }
+
+  /* ---------- Login screen ---------- */
+  #loginScreen{
+    position:fixed; inset:0;
+    background:#EFF2F5;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+  }
+  .login-box{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:36px 32px;
+    width:340px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.08);
+  }
+  .login-box h2{
+    margin:0 0 4px;
+    font-size:18px;
+    color:var(--dark);
+  }
+  .login-box p.sub{
+    margin:0 0 20px;
+    font-size:12.5px;
+    color:#7C8792;
+  }
+  .login-box label{
+    display:block;
+    font-size:12px;
+    font-weight:bold;
+    color:var(--navy);
+    margin-bottom:4px;
+  }
+  .login-box input{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    font-size:14px;
+    margin-bottom:14px;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+  }
+  .login-box button{
+    width:100%;
+    padding:11px;
+    background:var(--navy);
+    color:#fff;
+    border:none;
+    border-radius:5px;
+    font-size:14px;
+    font-weight:bold;
+    cursor:pointer;
+  }
+  .login-box button:hover{ background:#213a58; }
+  .login-error{
+    color:var(--pending);
+    font-size:12.5px;
+    margin:-6px 0 14px;
+    display:none;
+  }
+
+  /* ---------- Top bar ---------- */
+  #topBar{
+    max-width:1100px;
+    margin:0 auto;
+    padding:12px 20px 0;
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:10px;
+  }
+  #topBar .who{
+    font-size:12.5px;
+    color:#7C8792;
+    margin-right:auto;
+  }
+  #topBar button{
+    font-size:12.5px;
+    padding:7px 14px;
+    border-radius:5px;
+    cursor:pointer;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--dark);
+  }
+  #uploadBtn{
+    background:var(--orange);
+    border:none;
+    color:#1A1A1A;
+    font-weight:bold;
+  }
+  #uploadBtn:hover{ background:#d38f10; }
+  #logoutBtn:hover{ background:var(--alt); }
+
+  /* ---------- Upload modal ---------- */
+  #uploadModal{
+    position:fixed; inset:0;
+    background:rgba(20,24,28,0.55);
+    display:none;
+    align-items:flex-start;
+    justify-content:center;
+    z-index:200;
+    overflow-y:auto;
+    padding:40px 20px;
+  }
+  #uploadModal.open{ display:flex; }
+  .upload-box{
+    background:#fff;
+    border-radius:8px;
+    width:100%;
+    max-width:900px;
+    padding:28px;
+  }
+  .upload-box h2{ margin:0 0 4px; font-size:18px; }
+  .upload-box p.sub{ margin:0 0 18px; font-size:12.5px; color:#7C8792; }
+  .upload-dropzone{
+    border:2px dashed var(--border);
+    border-radius:8px;
+    padding:30px;
+    text-align:center;
+    color:#7C8792;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .upload-dropzone input{ margin-top:10px; }
+  .preview-table-wrap{
+    max-height:400px;
+    overflow-y:auto;
+    border:1px solid var(--border);
+    border-radius:6px;
+    margin-bottom:16px;
+  }
+  table.preview-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+  }
+  table.preview-table th{
+    background:var(--navy);
+    color:#fff;
+    text-align:left;
+    padding:8px 10px;
+    position:sticky;
+    top:0;
+  }
+  table.preview-table td{
+    padding:6px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  table.preview-table td input{
+    width:100%;
+    border:1px solid transparent;
+    padding:4px 6px;
+    border-radius:4px;
+    font-size:12.5px;
+    font-family:Arial, Helvetica, sans-serif;
+  }
+  table.preview-table td input:hover, table.preview-table td input:focus{
+    border-color:var(--border);
+    background:var(--alt);
+  }
+  table.preview-table tr.summary-row{ background:var(--alt); font-weight:bold; }
+  .upload-actions{ display:flex; justify-content:flex-end; gap:10px; }
+  .upload-actions button{
+    padding:10px 18px;
+    border-radius:5px;
+    font-size:13.5px;
+    cursor:pointer;
+    border:1px solid var(--border);
+  }
+  .btn-cancel{ background:#fff; }
+  .btn-confirm{ background:var(--navy); color:#fff; border:none; font-weight:bold; }
+  .btn-confirm:disabled{ background:#9AA6B2; cursor:not-allowed; }
+  .upload-status{ font-size:12.5px; margin-top:10px; color:#7C8792; }
+  .upload-status.error{ color:var(--pending); }
+  .upload-status.success{ color:#2E7D4F; }
 </style>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h2>BURLEBO Incoming Calendar</h2>
+    <p class="sub">Enter the password to view the dashboard.</p>
+    <label for="loginPassword">Password</label>
+    <input type="password" id="loginPassword" autocomplete="current-password">
+    <div class="login-error" id="loginError">Incorrect password.</div>
+    <button id="loginBtn">Sign In</button>
+  </div>
+</div>
+
+<div id="uploadModal">
+  <div class="upload-box">
+    <h2>Upload PO</h2>
+    <p class="sub">Upload the standard template (.csv or .xlsx) — one row per size/SKU with columns: name, division, po, ship_date, size, sku, qty.</p>
+    <div class="upload-dropzone">
+      Choose a file to parse<br>
+      <input type="file" id="uploadFile" accept=".csv,.xlsx,.xls">
+    </div>
+    <div id="previewArea"></div>
+    <div class="upload-status" id="uploadStatus"></div>
+    <div class="upload-actions">
+      <button class="btn-cancel" id="uploadCancelBtn">Cancel</button>
+      <button class="btn-confirm" id="uploadConfirmBtn" disabled>Confirm &amp; Save</button>
+    </div>
+  </div>
+</div>
 </head>
 <body>
+
+<div id="topBar">
+  <span class="who" id="whoAmI"></span>
+  <button id="uploadBtn" style="display:none;">+ Upload PO</button>
+  <button id="logoutBtn">Sign Out</button>
+</div>
 
 <header>
   <h1>Incoming Product Calendar</h1>
@@ -538,15 +752,244 @@ function formatShort(dateStr){
   const d = new Date(dateStr + "T12:00:00");
   return d.toLocaleDateString('en-US', { month:'short' }) + " '" + String(d.getFullYear()).slice(2);
 }
-async function init(){
-  try {
-    await fetchData();
-    build();
-  } catch (e) {
-    console.error('Failed to load dashboard data:', e);
+// ============================================================
+// Simple client-side password gate (NOT real security — see notes).
+// Passwords are visible to anyone who views page source. This only
+// protects against casual access, not a determined bad actor.
+// ============================================================
+const PASSWORDS = {
+  editor: "JungMeg0921!",
+  viewer: "BenditaCamo!"
+};
+
+let currentRole = null;
+
+function startApp(role){
+  currentRole = role;
+  sessionStorage.setItem('burlebo_role', role);
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('whoAmI').textContent = role === 'editor' ? 'Editor' : 'Viewer';
+  if (currentRole === 'editor'){
+    document.getElementById('uploadBtn').style.display = 'inline-block';
+  }
+
+  fetchData().then(build).catch(e => console.error('Failed to load dashboard data:', e));
+}
+
+function showLoginError(msg){
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function tryLogin(){
+  const password = document.getElementById('loginPassword').value;
+  document.getElementById('loginError').style.display = 'none';
+  if (password === PASSWORDS.editor){
+    startApp('editor');
+  } else if (password === PASSWORDS.viewer){
+    startApp('viewer');
+  } else {
+    showLoginError('Incorrect password.');
   }
 }
+
+document.getElementById('loginBtn').addEventListener('click', tryLogin);
+document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') tryLogin();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('burlebo_role');
+  location.reload();
+});
+
+function init(){
+  const savedRole = sessionStorage.getItem('burlebo_role');
+  if (savedRole === 'editor' || savedRole === 'viewer'){
+    startApp(savedRole);
+  }
+  // else: login screen stays visible (it's shown by default)
+}
 init();
+
+// ============================================================
+// Upload feature (editors only)
+// ============================================================
+let parsedRows = []; // normalized rows ready to preview/edit
+
+document.getElementById('uploadBtn').addEventListener('click', () => {
+  document.getElementById('uploadModal').classList.add('open');
+});
+document.getElementById('uploadCancelBtn').addEventListener('click', closeUploadModal);
+function closeUploadModal(){
+  document.getElementById('uploadModal').classList.remove('open');
+  document.getElementById('previewArea').innerHTML = '';
+  document.getElementById('uploadStatus').textContent = '';
+  document.getElementById('uploadStatus').className = 'upload-status';
+  document.getElementById('uploadFile').value = '';
+  document.getElementById('uploadConfirmBtn').disabled = true;
+  parsedRows = [];
+}
+
+document.getElementById('uploadFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const wb = XLSX.read(evt.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      handleParsedRows(rows);
+    } catch (err) {
+      setUploadStatus('Could not read that file: ' + err.message, true);
+    }
+  };
+  reader.readAsBinaryString(file);
+});
+
+function setUploadStatus(msg, isError, isSuccess){
+  const el = document.getElementById('uploadStatus');
+  el.textContent = msg;
+  el.className = 'upload-status' + (isError ? ' error' : '') + (isSuccess ? ' success' : '');
+}
+
+const REQUIRED_COLS = ['name','division','po','ship_date','size','sku','qty'];
+
+function handleParsedRows(rows){
+  if (!rows.length){
+    setUploadStatus('That file has no data rows.', true);
+    return;
+  }
+  const cols = Object.keys(rows[0]).map(c => c.toLowerCase().trim());
+  const missing = REQUIRED_COLS.filter(c => !cols.includes(c));
+  if (missing.length){
+    setUploadStatus(`Missing expected column(s): ${missing.join(', ')}. Expected: ${REQUIRED_COLS.join(', ')}.`, true);
+    return;
+  }
+
+  // normalize keys to lowercase
+  parsedRows = rows.map(r => {
+    const norm = {};
+    Object.keys(r).forEach(k => norm[k.toLowerCase().trim()] = r[k]);
+    return {
+      name: String(norm.name || '').trim(),
+      division: String(norm.division || '').trim(),
+      po: String(norm.po || '').trim(),
+      ship_date: normalizeDate(norm.ship_date),
+      size: String(norm.size || '').trim(),
+      sku: String(norm.sku || '').trim(),
+      qty: Number(norm.qty) || 0
+    };
+  }).filter(r => r.name && r.ship_date);
+
+  if (!parsedRows.length){
+    setUploadStatus('No valid rows found after parsing (check name/ship_date columns).', true);
+    return;
+  }
+
+  renderPreview();
+  setUploadStatus(`Parsed ${parsedRows.length} row(s) across ${new Set(parsedRows.map(r=>r.name+'|'+r.ship_date)).size} product line(s). Review below, then confirm.`, false);
+  document.getElementById('uploadConfirmBtn').disabled = false;
+}
+
+function normalizeDate(val){
+  if (!val) return '';
+  if (val instanceof Date) return val.toISOString().slice(0,10);
+  // Excel serial date number
+  if (typeof val === 'number'){
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(val).trim();
+  // try YYYY-MM-DD directly
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // try M/D/YYYY
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  const parsed = new Date(s);
+  if (!isNaN(parsed)) return parsed.toISOString().slice(0,10);
+  return s;
+}
+
+function renderPreview(){
+  const area = document.getElementById('previewArea');
+  const rowsHtml = parsedRows.map((r, i) => `
+    <tr data-idx="${i}">
+      <td><input data-field="name" value="${escapeAttr(r.name)}"></td>
+      <td><input data-field="division" value="${escapeAttr(r.division)}"></td>
+      <td><input data-field="po" value="${escapeAttr(r.po)}"></td>
+      <td><input data-field="ship_date" value="${escapeAttr(r.ship_date)}"></td>
+      <td><input data-field="size" value="${escapeAttr(r.size)}"></td>
+      <td><input data-field="sku" value="${escapeAttr(r.sku)}"></td>
+      <td><input data-field="qty" type="number" value="${r.qty}"></td>
+    </tr>`).join('');
+
+  area.innerHTML = `
+    <div class="preview-table-wrap">
+      <table class="preview-table">
+        <tr><th>Name</th><th>Division</th><th>PO</th><th>Ship Date</th><th>Size</th><th>SKU</th><th>Qty</th></tr>
+        ${rowsHtml}
+      </table>
+    </div>`;
+
+  area.querySelectorAll('input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const tr = e.target.closest('tr');
+      const idx = Number(tr.dataset.idx);
+      const field = e.target.dataset.field;
+      parsedRows[idx][field] = field === 'qty' ? Number(e.target.value) || 0 : e.target.value;
+    });
+  });
+}
+
+function escapeAttr(s){
+  return String(s).replace(/"/g, '&quot;');
+}
+
+document.getElementById('uploadConfirmBtn').addEventListener('click', async () => {
+  if (!parsedRows.length) return;
+  document.getElementById('uploadConfirmBtn').disabled = true;
+  setUploadStatus('Saving to Supabase…', false);
+
+  // group rows into products by (name, po, ship_date)
+  const groups = new Map();
+  parsedRows.forEach(r => {
+    const key = `${r.name}|||${r.po}|||${r.ship_date}`;
+    if (!groups.has(key)){
+      groups.set(key, { name:r.name, division:r.division, po:r.po, ship_date:r.ship_date, skus:[] });
+    }
+    groups.get(key).skus.push({ size:r.size, sku:r.sku, qty:r.qty });
+  });
+
+  let savedProducts = 0, savedSkus = 0;
+  try {
+    for (const g of groups.values()){
+      const totalQty = g.skus.reduce((sum,s) => sum + s.qty, 0);
+      const { data: prod, error: prodErr } = await supabaseClient
+        .from('incoming_products')
+        .insert({ name:g.name, division:g.division, po:g.po, ship_date:g.ship_date, total_qty: totalQty, pending: false })
+        .select('id')
+        .single();
+      if (prodErr) throw prodErr;
+      savedProducts++;
+
+      const skuRows = g.skus.map(s => ({ product_id: prod.id, size:s.size, sku:s.sku || null, qty:s.qty }));
+      const { error: skuErr } = await supabaseClient.from('incoming_product_skus').insert(skuRows);
+      if (skuErr) throw skuErr;
+      savedSkus += skuRows.length;
+    }
+    setUploadStatus(`Saved ${savedProducts} product line(s), ${savedSkus} SKU row(s). Refreshing dashboard…`, false, true);
+    await fetchData();
+    build();
+    setTimeout(closeUploadModal, 1500);
+  } catch (err) {
+    setUploadStatus('Error saving to Supabase: ' + err.message, true);
+    document.getElementById('uploadConfirmBtn').disabled = false;
+  }
+});
 
 function applySearch(){
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
