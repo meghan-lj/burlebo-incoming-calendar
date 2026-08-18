@@ -1094,11 +1094,20 @@ function closeUploadModal(){
 document.getElementById('uploadFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  const isCsv = /\.csv$/i.test(file.name);
   const reader = new FileReader();
   reader.onload = (evt) => {
     try {
-      const data = new Uint8Array(evt.target.result);
-      const wb = XLSX.read(data, { type: 'array' });
+      let wb;
+      if (isCsv){
+        // Decode as UTF-8 text ourselves — SheetJS's own CSV encoding
+        // detection assumes Latin-1 unless a BOM is present, which mangles
+        // characters like en dashes (–) even when the file is valid UTF-8.
+        wb = XLSX.read(evt.target.result, { type: 'string' });
+      } else {
+        const data = new Uint8Array(evt.target.result);
+        wb = XLSX.read(data, { type: 'array' });
+      }
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
       handleParsedRows(rows);
@@ -1106,7 +1115,11 @@ document.getElementById('uploadFile').addEventListener('change', (e) => {
       setUploadStatus('Could not read that file: ' + err.message, true);
     }
   };
-  reader.readAsArrayBuffer(file);
+  if (isCsv){
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
 });
 
 function setUploadStatus(msg, isError, isSuccess){
