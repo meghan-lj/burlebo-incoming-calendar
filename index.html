@@ -725,6 +725,7 @@
 
 <div id="topBar">
   <span class="who" id="whoAmI"></span>
+  <button id="exportBtn">Export to Excel</button>
   <button id="uploadBtn" style="display:none;">+ Upload PO</button>
   <button id="logoutBtn">Sign Out</button>
 </div>
@@ -1573,6 +1574,66 @@ function setBulkEditStatus(msg, isError, isSuccess){
   el.textContent = msg;
   el.className = 'upload-status' + (isError ? ' error' : '') + (isSuccess ? ' success' : '');
 }
+
+// ============================================================
+// Export to Excel — flattens the currently loaded data to
+// SKU-level rows and downloads an .xlsx file.
+// ============================================================
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (!DATA.length){
+    alert('Nothing loaded yet — wait for the dashboard to finish loading, then try again.');
+    return;
+  }
+
+  const rows = [];
+  DATA.forEach(month => {
+    month.dates.forEach(dateGroup => {
+      dateGroup.items.forEach(it => {
+        if (it.breakdown.length){
+          it.breakdown.forEach(([size, sku, qty]) => {
+            rows.push({
+              name: it.name,
+              division: it.division || '',
+              po: it.po || '',
+              ship_date: dateGroup.date,
+              size: size,
+              sku: sku || '',
+              qty: qty
+            });
+          });
+        } else {
+          rows.push({
+            name: it.name,
+            division: it.division || '',
+            po: it.po || '',
+            ship_date: dateGroup.date,
+            size: '',
+            sku: '',
+            qty: it.qty
+          });
+        }
+      });
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows, {
+    header: ['name','division','po','ship_date','size','sku','qty']
+  });
+  ws['!cols'] = [
+    { wch: 40 }, // name
+    { wch: 10 }, // division
+    { wch: 22 }, // po
+    { wch: 12 }, // ship_date
+    { wch: 10 }, // size
+    { wch: 20 }, // sku
+    { wch: 8 }   // qty
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Incoming Products');
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `burlebo_incoming_calendar_${today}.xlsx`);
+});
 </script>
 
 </body>
