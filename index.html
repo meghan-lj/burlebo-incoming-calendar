@@ -243,6 +243,42 @@
     font-weight:bold;
   }
   .edit-btn:hover{ background:var(--navy); color:#fff; }
+
+  .delivered-btn{
+    flex:none;
+    margin-left:12px;
+    font-size:11.5px;
+    padding:5px 12px;
+    border-radius:5px;
+    border:1px solid #2E7D4F;
+    background:#fff;
+    color:#2E7D4F;
+    cursor:pointer;
+    font-weight:bold;
+    white-space:nowrap;
+  }
+  .delivered-btn:hover{ background:#2E7D4F; color:#fff; }
+  .delivered-btn.is-delivered{
+    border-color:#9AA6B2;
+    color:#9AA6B2;
+  }
+  .delivered-btn.is-delivered:hover{ background:#9AA6B2; color:#fff; }
+
+  .delivered-tag{
+    flex:none;
+    font-size:10px;
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    padding:2px 8px;
+    border-radius:3px;
+    color:#fff;
+    background:#2E7D4F;
+  }
+  .item.delivered .item-head{ background:#F4FAF6; }
+  .item.delivered .item-name{ color:#5A6572; }
+  .item.delivered .item-qty{ color:#7C9A87; }
+
   .breakdown{
     display:none;
     background:var(--alt);
@@ -339,6 +375,24 @@
     background:#fff;
     border:1px solid var(--border);
     border-radius:6px;
+  }
+
+  .hide-delivered-wrap{
+    max-width:1100px;
+    margin:10px auto 0;
+    padding:0 20px;
+    font-size:12.5px;
+    color:#5A6572;
+  }
+  .hide-delivered-wrap label{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+  }
+  .hide-delivered-wrap input{
+    accent-color:var(--navy);
+    cursor:pointer;
   }
 
   /* ---------- Login screen ---------- */
@@ -716,6 +770,7 @@
 
 <div id="bulkBar">
   <span class="bulk-count" id="bulkCount">0 selected</span>
+  <button id="bulkDeliveredBtn">Mark Delivered</button>
   <button id="bulkEditBtn">Bulk Edit</button>
   <button class="bulk-delete-btn" id="bulkDeleteBtn">Delete Selected</button>
   <button class="bulk-clear-btn" id="bulkClearBtn">Clear selection</button>
@@ -744,6 +799,9 @@
   <svg class="search-icon" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
   <input type="text" id="searchBox" placeholder="Search by product name, PO number, or SKU..." autocomplete="off">
   <button class="search-clear" id="clearSearch">Clear</button>
+</div>
+<div class="hide-delivered-wrap">
+  <label><input type="checkbox" id="hideDeliveredBox"> Hide delivered items</label>
 </div>
 <div class="no-results" id="noResults">No matching products found.</div>
 
@@ -783,7 +841,7 @@ async function fetchData(){
   const { data: products, error } = await supabaseClient
     .from('incoming_products')
     .select(`
-      id, ship_date, pending, name, division, po, total_qty,
+      id, ship_date, pending, delivered, name, division, po, total_qty,
       incoming_product_skus ( size, sku, qty )
     `)
     .order('ship_date', { ascending: true });
@@ -820,6 +878,7 @@ async function fetchData(){
       po: p.po,
       qty: p.total_qty,
       ship_date: p.ship_date,
+      delivered: p.delivered,
       breakdown
     });
   });
@@ -885,7 +944,7 @@ function build(){
         poSet.add(it.po);
 
         const itemEl = document.createElement('div');
-        itemEl.className = 'item';
+        itemEl.className = 'item' + (it.delivered ? ' delivered' : '');
         const skuText = it.breakdown.map(b => b[1]).filter(Boolean).join(' ');
         itemEl.dataset.search = (it.name + ' ' + it.po + ' ' + skuText).toLowerCase();
 
@@ -924,6 +983,13 @@ function build(){
           left.appendChild(tag);
         }
 
+        if (it.delivered){
+          const dTag = document.createElement('span');
+          dTag.className = 'delivered-tag';
+          dTag.textContent = '✓ Delivered';
+          left.appendChild(dTag);
+        }
+
         const nameWrap = document.createElement('div');
         const nm = document.createElement('div');
         nm.className = 'item-name';
@@ -943,6 +1009,12 @@ function build(){
         head.appendChild(qty);
 
         if (currentRole === 'editor'){
+          const deliveredBtn = document.createElement('button');
+          deliveredBtn.className = 'delivered-btn' + (it.delivered ? ' is-delivered' : '');
+          deliveredBtn.textContent = it.delivered ? 'Undo' : 'Mark Delivered';
+          deliveredBtn.onclick = (e) => { e.stopPropagation(); toggleDelivered(it); };
+          head.appendChild(deliveredBtn);
+
           const editBtn = document.createElement('button');
           editBtn.className = 'edit-btn';
           editBtn.textContent = 'Edit';
@@ -1004,6 +1076,8 @@ function build(){
     <div class="stat"><div class="num">${itemCount}</div><div class="lbl">Product Lines</div></div>
     <div class="stat"><div class="num">${windowLabel}</div><div class="lbl">Window Covered</div></div>
   `;
+
+  applySearch();
 }
 
 function formatShort(dateStr){
@@ -1274,6 +1348,7 @@ document.getElementById('uploadConfirmBtn').addEventListener('click', async () =
 
 function applySearch(){
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  const hideDelivered = document.getElementById('hideDeliveredBox').checked;
   const noResults = document.getElementById('noResults');
   let anyVisible = false;
 
@@ -1282,7 +1357,9 @@ function applySearch(){
     monthEl.querySelectorAll('.date-group').forEach(dateEl => {
       let dateHasVisible = false;
       dateEl.querySelectorAll('.item').forEach(itemEl => {
-        const match = !q || itemEl.dataset.search.includes(q);
+        const matchesSearch = !q || itemEl.dataset.search.includes(q);
+        const matchesDelivered = !hideDelivered || !itemEl.classList.contains('delivered');
+        const match = matchesSearch && matchesDelivered;
         itemEl.classList.toggle('hidden', !match);
         if (match) dateHasVisible = true;
         if (q && match) itemEl.classList.add('open');
@@ -1297,9 +1374,10 @@ function applySearch(){
     if (monthHasVisible) anyVisible = true;
   });
 
-  noResults.style.display = (q && !anyVisible) ? 'block' : 'none';
+  noResults.style.display = (!anyVisible) ? 'block' : 'none';
 }
 document.getElementById('searchBox').addEventListener('input', applySearch);
+document.getElementById('hideDeliveredBox').addEventListener('change', applySearch);
 document.getElementById('clearSearch').addEventListener('click', () => {
   document.getElementById('searchBox').value = '';
   applySearch();
@@ -1489,6 +1567,41 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
     build();
   } catch (err) {
     alert('Error deleting: ' + err.message);
+  }
+});
+
+// ---------- Delivered toggle (single item) ----------
+async function toggleDelivered(item){
+  const newVal = !item.delivered;
+  try {
+    const { error } = await supabaseClient
+      .from('incoming_products')
+      .update({ delivered: newVal })
+      .eq('id', item.id);
+    if (error) throw error;
+    await fetchData();
+    build();
+  } catch (err) {
+    alert('Error updating delivered status: ' + err.message);
+  }
+}
+
+// ---------- Delivered toggle (bulk) ----------
+document.getElementById('bulkDeliveredBtn').addEventListener('click', async () => {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+  try {
+    const { error } = await supabaseClient
+      .from('incoming_products')
+      .update({ delivered: true })
+      .in('id', ids);
+    if (error) throw error;
+
+    selectedIds.clear();
+    await fetchData();
+    build();
+  } catch (err) {
+    alert('Error marking delivered: ' + err.message);
   }
 });
 
