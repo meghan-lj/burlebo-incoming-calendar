@@ -76,6 +76,8 @@
     font-weight:bold;
     letter-spacing:.4px;
     display:flex;
+    flex-wrap:wrap;
+    gap:8px;
     justify-content:space-between;
     align-items:center;
     cursor:pointer;
@@ -95,6 +97,28 @@
     background:rgba(255,255,255,0.15);
     padding:4px 10px;
     border-radius:12px;
+  }
+  .month-stats{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+  .month-pill{
+    font-size:11px;
+    font-weight:bold;
+    padding:4px 10px;
+    border-radius:12px;
+    white-space:nowrap;
+  }
+  .month-pill-delivered{
+    background:rgba(46,125,79,0.25);
+    color:#B7E4C7;
+  }
+  .month-pill-pending{
+    background:rgba(232,160,32,0.25);
+    color:var(--orange);
   }
   .month-dates-wrap{ display:none; }
   .month-block.open .month-dates-wrap{ display:block; }
@@ -383,17 +407,31 @@
     padding:0 20px;
     font-size:12.5px;
     color:#5A6572;
-  }
-  .hide-delivered-wrap label{
-    display:inline-flex;
+    display:flex;
     align-items:center;
-    gap:6px;
+    gap:8px;
+  }
+  .hide-delivered-wrap select{
+    padding:5px 8px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    font-size:12.5px;
+    font-family:Arial, Helvetica, sans-serif;
+    color:var(--dark);
     cursor:pointer;
   }
-  .hide-delivered-wrap input{
-    accent-color:var(--navy);
+  #selectAllVisibleBtn{
+    margin-left:auto;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:5px;
+    border:1px solid var(--navy);
+    background:#fff;
+    color:var(--navy);
     cursor:pointer;
+    font-weight:bold;
   }
+  #selectAllVisibleBtn:hover{ background:var(--navy); color:#fff; }
 
   /* ---------- Login screen ---------- */
   #loginScreen{
@@ -801,7 +839,13 @@
   <button class="search-clear" id="clearSearch">Clear</button>
 </div>
 <div class="hide-delivered-wrap">
-  <label><input type="checkbox" id="hideDeliveredBox"> Hide delivered items</label>
+  <label for="deliveredFilter">Show:</label>
+  <select id="deliveredFilter">
+    <option value="all">All items</option>
+    <option value="hide">Hide delivered</option>
+    <option value="only">Only delivered</option>
+  </select>
+  <button id="selectAllVisibleBtn" style="display:none;">Select all visible</button>
 </div>
 <div class="no-results" id="noResults">No matching products found.</div>
 
@@ -906,6 +950,7 @@ function build(){
 
   DATA.forEach(monthBlock => {
     let monthTotal = 0;
+    let monthDelivered = 0;
     const monthEl = document.createElement('div');
     monthEl.className = 'month-block';
 
@@ -940,6 +985,7 @@ function build(){
         dateTotal += it.qty;
         monthTotal += it.qty;
         grandTotal += it.qty;
+        if (it.delivered) monthDelivered += it.qty;
         itemCount++;
         poSet.add(it.po);
 
@@ -1052,12 +1098,17 @@ function build(){
 
     const mHeader = document.createElement('div');
     mHeader.className = 'month-header';
+    const monthPending = monthTotal - monthDelivered;
     mHeader.innerHTML = `
       <span class="month-left">
         <svg class="month-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>${monthBlock.month}</span>
       </span>
-      <span class="month-total">${fmt(monthTotal)} units</span>`;
+      <span class="month-stats">
+        <span class="month-total">${fmt(monthTotal)} units</span>
+        <span class="month-pill month-pill-delivered">✓ ${fmt(monthDelivered)} delivered</span>
+        <span class="month-pill month-pill-pending">${fmt(monthPending)} pending</span>
+      </span>`;
     mHeader.onclick = () => monthEl.classList.toggle('open');
 
     monthEl.appendChild(mHeader);
@@ -1348,7 +1399,7 @@ document.getElementById('uploadConfirmBtn').addEventListener('click', async () =
 
 function applySearch(){
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
-  const hideDelivered = document.getElementById('hideDeliveredBox').checked;
+  const deliveredFilter = document.getElementById('deliveredFilter').value; // 'all' | 'hide' | 'only'
   const noResults = document.getElementById('noResults');
   let anyVisible = false;
 
@@ -1358,7 +1409,11 @@ function applySearch(){
       let dateHasVisible = false;
       dateEl.querySelectorAll('.item').forEach(itemEl => {
         const matchesSearch = !q || itemEl.dataset.search.includes(q);
-        const matchesDelivered = !hideDelivered || !itemEl.classList.contains('delivered');
+        const isDelivered = itemEl.classList.contains('delivered');
+        const matchesDelivered =
+          deliveredFilter === 'all' ? true :
+          deliveredFilter === 'hide' ? !isDelivered :
+          isDelivered; // 'only'
         const match = matchesSearch && matchesDelivered;
         itemEl.classList.toggle('hidden', !match);
         if (match) dateHasVisible = true;
@@ -1375,12 +1430,25 @@ function applySearch(){
   });
 
   noResults.style.display = (!anyVisible) ? 'block' : 'none';
+
+  if (currentRole === 'editor'){
+    document.getElementById('selectAllVisibleBtn').style.display = 'inline-block';
+  }
 }
 document.getElementById('searchBox').addEventListener('input', applySearch);
-document.getElementById('hideDeliveredBox').addEventListener('change', applySearch);
+document.getElementById('deliveredFilter').addEventListener('change', applySearch);
 document.getElementById('clearSearch').addEventListener('click', () => {
   document.getElementById('searchBox').value = '';
   applySearch();
+});
+document.getElementById('selectAllVisibleBtn').addEventListener('click', () => {
+  document.querySelectorAll('.item:not(.hidden)').forEach(itemEl => {
+    const cb = itemEl.querySelector('.bulk-checkbox');
+    if (cb && !cb.checked){
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change'));
+    }
+  });
 });
 
 // ============================================================
